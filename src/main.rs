@@ -151,12 +151,9 @@ fn setup_marker() -> std::path::PathBuf {
 }
 
 fn needs_setup() -> bool {
-    // Setup is done when both the udev rule and sudoers file are in place.
+    // Only check the udev rule — it's world-readable unlike the sudoers file (0440 root:root).
+    // Path::exists() returns false on permission denied, so we can't rely on it for sudoers.
     !std::path::Path::new("/etc/udev/rules.d/60-fancontroller.rules").exists()
-    || !std::path::Path::new("/etc/sudoers.d/fancontroller").exists()
-    || !std::fs::read_to_string("/etc/sudoers.d/fancontroller")
-            .unwrap_or_default()
-            .contains("--gpu-set")
 }
 
 fn setup_permissions() {
