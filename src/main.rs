@@ -15,21 +15,27 @@ use serde_json::json;
 #[cfg(target_os = "linux")]
 use glob::glob;
 
+const DAEMON_PID_FILE: &str = "/tmp/fancontroller-daemon.pid";
+
 fn main() -> anyhow::Result<()> {
-    // Privileged NVML subcommands (`--gpu-set` / `--gpu-reset`). When the app
-    // needs to change a GPU fan it re-execs itself through `sudo -n`; that
-    // re-exec lands here and exits before any GUI/GTK initialisation.
+    // Privileged NVML subcommands — re-exec via sudo -n, exit before GUI.
     if let Some(code) = gpu_nvml::run_cli() {
         std::process::exit(code);
     }
+
+    // Background daemon mode: apply saved curves without any GUI.
+    if std::env::args().any(|a| a == "--daemon") {
+        return run_daemon();
+    }
+
+    // GUI mode: stop the daemon if it's running so we can take over.
+    stop_daemon();
 
     unsafe {
         std::env::set_var("GDK_BACKEND", "x11");
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     };
 
-    // One-time setup: install a sudoers rule so pwm files and GPU control work
-    // without a password prompt. After first run the app needs no interaction.
     if !is_root() && needs_setup() {
         setup_permissions();
     }
@@ -117,6 +123,46 @@ fn main() -> anyhow::Result<()> {
 
     gtk::main();
     Ok(())
+}
+
+/// Run without GUI: apply saved custom profile curves in a loop.
+fn run_daemon() -> anyhow::Result<()> {
+    if !is_root() && needs_setup() {
+        setup_permissions();
+    }
+
+    // Write PID so the GUI can find and stop us.
+    std::fs::write(DAEMON_PID_FILE, std::process::id().to_string()).ok();
+
+    let mut ctrl = FanController::new();
+    ctrl.scan_all();
+
+    // Apply every saved custom-profile curve immediately on start.
+    let custom = ctrl.get_custom_profile().clone();
+    for (fan_id, points) in custom {
+        if points.len() >= 2 {
+            let _ = ctrl.set_curve(&fan_id, points);
+        }
+    }
+
+    let mut ticks = 0u32;
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+        if ticks % 3 == 0 { ctrl.scan_all(); }
+        ctrl.tick();
+        ticks += 1;
+    }
+}
+
+/// Kill a running daemon instance (if any) so the GUI can take over.
+fn stop_daemon() {
+    if let Ok(pid_str) = std::fs::read_to_string(DAEMON_PID_FILE) {
+        if let Ok(pid) = pid_str.trim().parse::<u32>() {
+            let _ = std::process::Command::new("kill").arg(pid.to_string()).status();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+        }
+        std::fs::remove_file(DAEMON_PID_FILE).ok();
+    }
 }
 
 fn is_root() -> bool {
