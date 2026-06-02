@@ -222,10 +222,10 @@ fn setup_permissions() {
             .args(["usermod", "-aG", "hwmon", &user])
             .status()?;
 
-        // 2. udev rule — sets group ownership + group-writable on hwmon pwm files.
-        let udev_rule = "SUBSYSTEM==\"hwmon\", ACTION==\"add\", \
-            RUN+=\"/bin/sh -c 'chown root:hwmon /sys%p/pwm* /sys%p/pwm*_enable 2>/dev/null; \
-            chmod 0664 /sys%p/pwm* /sys%p/pwm*_enable 2>/dev/null; true'\"\n";
+        // 2. udev rule — as recommended by the Arch Wiki Fan speed control article.
+        //    Sets group ownership directly via TAG/GROUP, no shell script needed.
+        let udev_rule = "SUBSYSTEM==\"hwmon\", KERNEL==\"hwmon[0-9]*\", \
+            ACTION==\"add\", GROUP=\"hwmon\", MODE=\"0660\"\n";
         let mut child = std::process::Command::new("sudo")
             .args(["tee", "/etc/udev/rules.d/60-fancontroller.rules"])
             .stdin(std::process::Stdio::piped())
@@ -234,14 +234,10 @@ fn setup_permissions() {
         child.stdin.as_mut().unwrap().write_all(udev_rule.as_bytes())?;
         child.wait()?;
 
-        // Apply immediately without waiting for reboot.
+        // Reload udev rules and trigger immediately (no reboot needed).
         std::process::Command::new("sudo")
             .args(["sh", "-c",
-                "chown root:hwmon /sys/class/hwmon/hwmon*/pwm[0-9] \
-                                  /sys/class/hwmon/hwmon*/pwm[0-9]_enable 2>/dev/null; \
-                 chmod 0664 /sys/class/hwmon/hwmon*/pwm[0-9] \
-                            /sys/class/hwmon/hwmon*/pwm[0-9]_enable 2>/dev/null; \
-                 udevadm control --reload-rules"])
+                "udevadm control --reload-rules && udevadm trigger --subsystem-match=hwmon"])
             .status()?;
 
         // 3. sudoers rule — only for NVIDIA NVML (--gpu-set / --gpu-reset).
