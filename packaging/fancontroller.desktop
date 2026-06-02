@@ -1,8 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=FanController
-Comment=Fan controller (hwmon + NVIDIA NVML)
+Comment=Fan controller for Linux (hwmon + NVIDIA NVML)
 Exec=fancontroller
+Icon=fancontroller
 Terminal=false
 Categories=System;Settings;HardwareSettings;
 Keywords=fan;cooling;pwm;gpu;nvidia;temperature;

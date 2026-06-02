@@ -150,69 +150,68 @@ fn setup_marker() -> std::path::PathBuf {
         .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/fancontroller-setup"))
 }
 
-/// True when first-time (or upgrade) setup is required: the pwm files still need
-/// root, the sudoers rule is missing, or it was written by an older version that
-/// lacked the GPU control whitelist.
 fn needs_setup() -> bool {
-    let marker_ok = std::fs::read_to_string(setup_marker())
-        .ok()
-        .and_then(|s| s.trim().parse::<u32>().ok())
-        .map(|v| v >= SETUP_VERSION)
-        .unwrap_or(false);
-    !std::path::Path::new("/etc/sudoers.d/fancontroller").exists() || pwm_needs_root() || !marker_ok
+    // Setup is done when both the udev rule and sudoers file are in place.
+    !std::path::Path::new("/etc/udev/rules.d/60-fancontroller.rules").exists()
+    || !std::path::Path::new("/etc/sudoers.d/fancontroller").exists()
+    || !std::fs::read_to_string("/etc/sudoers.d/fancontroller")
+            .unwrap_or_default()
+            .contains("--gpu-set")
 }
 
 fn setup_permissions() {
-    let sudoers_path = "/etc/sudoers.d/fancontroller";
+    eprintln!("FanController: one-time setup — enter sudo password:");
 
-    eprintln!("Fan control needs elevated access. Enter sudo password (one-time setup):");
-
-    // 1. Make pwm files writable for this session immediately
-    let _ = std::process::Command::new("sudo")
-        .args(["sh", "-c",
-            "chmod a+w /sys/class/hwmon/hwmon*/pwm[0-9] \
-                       /sys/class/hwmon/hwmon*/pwm[0-9]_enable 2>/dev/null; true"])
-        .status();
-
-    // 2. Write a sudoers NOPASSWD rule so future `sudo -n` calls work without a
-    //    password prompt. Three entries:
-    //      - `tee /sys/class/hwmon/*`  → motherboard (hwmon) fan writes
-    //      - `<this binary> --gpu-set/--gpu-reset` → privileged NVML GPU control
-    //    Always (re)written so upgrades pick up new rules (see SETUP_VERSION).
     let user = std::env::var("USER").unwrap_or_else(|_| "ALL".into());
     let exe = std::env::current_exe()
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|_| "/usr/local/bin/fancontroller".into());
-    let rule = format!(
-        "{user} ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/class/hwmon/*\n\
-         {user} ALL=(ALL) NOPASSWD: {exe} --gpu-set *\n\
-         {user} ALL=(ALL) NOPASSWD: {exe} --gpu-reset *\n"
-    );
+
     let ok = (|| -> anyhow::Result<()> {
         use std::io::Write as _;
+
+        // 1. udev rule — makes hwmon pwm files permanently writable after every boot.
+        //    No more `sudo tee` needed for motherboard fans.
+        let udev_rule = "ACTION==\"add\", SUBSYSTEM==\"hwmon\", \
+            RUN+=\"/bin/sh -c 'chmod a+w /sys%p/pwm* /sys%p/pwm*_enable 2>/dev/null; true'\"\n";
         let mut child = std::process::Command::new("sudo")
-            .args(["tee", sudoers_path])
+            .args(["tee", "/etc/udev/rules.d/60-fancontroller.rules"])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::null())
             .spawn()?;
-        child.stdin.as_mut().unwrap().write_all(rule.as_bytes())?;
+        child.stdin.as_mut().unwrap().write_all(udev_rule.as_bytes())?;
         child.wait()?;
-        // sudoers files must be 0440
+
+        // Apply immediately for this session (don't wait for next reboot)
         std::process::Command::new("sudo")
-            .args(["chmod", "0440", sudoers_path])
+            .args(["sh", "-c",
+                "chmod a+w /sys/class/hwmon/hwmon*/pwm[0-9] \
+                           /sys/class/hwmon/hwmon*/pwm[0-9]_enable 2>/dev/null; \
+                 udevadm control --reload-rules"])
             .status()?;
+
+        // 2. sudoers rule — only needed for NVIDIA NVML (--gpu-set / --gpu-reset).
+        let sudoers = format!(
+            "{user} ALL=(ALL) NOPASSWD: {exe} --gpu-set *\n\
+             {user} ALL=(ALL) NOPASSWD: {exe} --gpu-reset *\n"
+        );
+        let mut child = std::process::Command::new("sudo")
+            .args(["tee", "/etc/sudoers.d/fancontroller"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .spawn()?;
+        child.stdin.as_mut().unwrap().write_all(sudoers.as_bytes())?;
+        child.wait()?;
+        std::process::Command::new("sudo")
+            .args(["chmod", "0440", "/etc/sudoers.d/fancontroller"])
+            .status()?;
+
         Ok(())
     })();
+
     match ok {
-        Ok(()) => {
-            // Record the installed version so we don't prompt again until the
-            // rule format changes.
-            let marker = setup_marker();
-            if let Some(dir) = marker.parent() { std::fs::create_dir_all(dir).ok(); }
-            std::fs::write(&marker, SETUP_VERSION.to_string()).ok();
-            eprintln!("Setup complete — no password needed from now on.");
-        }
-        Err(e) => eprintln!("Could not write sudoers rule ({e}). You may need to enter the password on each start."),
+        Ok(()) => eprintln!("Setup complete — no password needed from now on."),
+        Err(e) => eprintln!("Setup failed ({e}). Fan control may require the password on each start."),
     }
 }
 
