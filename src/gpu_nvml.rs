@@ -56,7 +56,9 @@ pub fn read_all() -> Vec<GpuFan> {
 pub fn set_fan(gpu_idx: u32, fan_idx: u32, pct: u8) -> anyhow::Result<()> {
     let nvml = Nvml::init()?;
     let mut dev = nvml.device_by_index(gpu_idx)?;
-    dev.set_fan_speed(fan_idx, pct.min(100) as u32)?;
+    // Enforce minimum 30% — setting GPU fan to 0 risks overheating.
+    let pct = pct.clamp(30, 100);
+    dev.set_fan_speed(fan_idx, pct as u32)?;
     Ok(())
 }
 
@@ -83,7 +85,12 @@ pub fn run_cli() -> Option<i32> {
         Some("--gpu-set") => {
             let gpu: u32 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
             let fan: u32 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(0);
-            let pct: u8 = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(50);
+            let pct: u8  = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(50);
+            // Reject out-of-range indices — prevents misuse via the sudoers wildcard.
+            if gpu > 7 || fan > 7 {
+                eprintln!("gpu-set: invalid gpu/fan index (max 7)");
+                return Some(1);
+            }
             match set_fan(gpu, fan, pct) {
                 Ok(()) => Some(0),
                 Err(e) => { eprintln!("gpu-set failed: {e}"); Some(1) }
@@ -91,6 +98,10 @@ pub fn run_cli() -> Option<i32> {
         }
         Some("--gpu-reset") => {
             let gpu: u32 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
+            if gpu > 7 {
+                eprintln!("gpu-reset: invalid gpu index (max 7)");
+                return Some(1);
+            }
             match reset_gpu(gpu) {
                 Ok(()) => Some(0),
                 Err(e) => { eprintln!("gpu-reset failed: {e}"); Some(1) }
