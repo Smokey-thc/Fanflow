@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 use crate::hardware::{FanInfo, CurvePoint, FanMode};
 
-fn config_path() -> std::path::PathBuf {
+fn config_dir() -> std::path::PathBuf {
     let dir = std::env::var("HOME")
         .map(|h| std::path::PathBuf::from(h).join(".config").join("fancontroller"))
         .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/fancontroller"));
     std::fs::create_dir_all(&dir).ok();
-    dir.join("config.json")
+    dir
 }
+
+fn config_path() -> std::path::PathBuf { config_dir().join("config.json") }
+fn custom_profile_path() -> std::path::PathBuf { config_dir().join("custom_profile.json") }
 
 /// Trait that every hardware backend must implement
 pub trait FanBackend: Send + Sync {
@@ -24,13 +27,14 @@ pub struct FanController {
     curves: HashMap<String, Vec<CurvePoint>>,
     /// User-defined labels that override hardware-detected names
     custom_labels: HashMap<String, String>,
+    /// Saved curves for the Custom profile (persisted to disk)
+    custom_profile: HashMap<String, Vec<CurvePoint>>,
 }
 
 impl FanController {
     pub fn new() -> Self {
         let mut backends: Vec<Box<dyn FanBackend>> = Vec::new();
 
-        // Register platform-specific backends
         #[cfg(target_os = "linux")]
         {
             use crate::hardware::linux::{HwmonBackend, NvidiaBackend, AmdGpuBackend};
@@ -47,10 +51,14 @@ impl FanController {
             backends.push(Box::new(AmdBackend::new()));
         }
 
-        // Load persisted custom labels
         let custom_labels = std::fs::read_to_string(config_path())
             .ok()
             .and_then(|s| serde_json::from_str::<HashMap<String, String>>(&s).ok())
+            .unwrap_or_default();
+
+        let custom_profile = std::fs::read_to_string(custom_profile_path())
+            .ok()
+            .and_then(|s| serde_json::from_str::<HashMap<String, Vec<CurvePoint>>>(&s).ok())
             .unwrap_or_default();
 
         Self {
@@ -58,10 +66,10 @@ impl FanController {
             fans: HashMap::new(),
             curves: HashMap::new(),
             custom_labels,
+            custom_profile,
         }
     }
 
-    /// Scan all backends and refresh fan list
     pub fn scan_all(&mut self) {
         self.fans.clear();
         for backend in &mut self.backends {
@@ -81,15 +89,25 @@ impl FanController {
         }).collect()
     }
 
+    /// Returns the saved Custom profile curves (all fans).
+    pub fn get_custom_profile(&self) -> &HashMap<String, Vec<CurvePoint>> {
+        &self.custom_profile
+    }
+
+    /// Save one fan's curve into the Custom profile and persist to disk.
+    pub fn save_custom_curve(&mut self, fan_id: &str, points: Vec<CurvePoint>) {
+        self.custom_profile.insert(fan_id.to_string(), points);
+        let json = serde_json::to_string_pretty(&self.custom_profile).unwrap_or_default();
+        std::fs::write(custom_profile_path(), json).ok();
+    }
+
     pub fn rename_fan(&mut self, fan_id: &str, label: String) {
         self.custom_labels.insert(fan_id.to_string(), label);
         let json = serde_json::to_string_pretty(&self.custom_labels).unwrap_or_default();
         std::fs::write(config_path(), json).ok();
     }
 
-    /// Apply a fan curve (Rust side applies it by polling temp every second)
     pub fn set_curve(&mut self, fan_id: &str, points: Vec<CurvePoint>) -> anyhow::Result<()> {
-        // Validate: must be sorted by temp, at least 2 points
         if points.len() < 2 {
             anyhow::bail!("Curve needs at least 2 points");
         }
@@ -98,16 +116,13 @@ impl FanController {
                 anyhow::bail!("Curve points must be sorted by temperature");
             }
         }
-
         self.curves.insert(fan_id.to_string(), points);
-
         if let Some(fan) = self.fans.get_mut(fan_id) {
             fan.mode = FanMode::Curve;
         }
         Ok(())
     }
 
-    /// Apply fixed speed
     pub fn set_fixed_speed(&mut self, fan_id: &str, pct: u8) -> anyhow::Result<()> {
         let pct = pct.min(100);
         let mut last_err = String::new();
@@ -126,7 +141,6 @@ impl FanController {
         anyhow::bail!("{last_err}")
     }
 
-    /// Reset to automatic control
     pub fn reset_to_default(&mut self, fan_id: &str) {
         for backend in &mut self.backends {
             let _ = backend.reset_to_auto(fan_id);
@@ -137,7 +151,6 @@ impl FanController {
         }
     }
 
-    /// Called every second by the background thread to apply active fan curves.
     pub fn tick(&mut self) {
         let curve_ids: Vec<String> = self.curves.keys().cloned().collect();
         for fan_id in curve_ids {
@@ -145,7 +158,6 @@ impl FanController {
             if let Some(temp) = temp {
                 let points = self.curves[&fan_id].clone();
                 let speed = interpolate_curve(&points, temp);
-                // Write speed directly without changing the stored mode to Fixed
                 for backend in &mut self.backends {
                     if backend.set_speed_pct(&fan_id, speed).is_ok() {
                         if let Some(fan) = self.fans.get_mut(&fan_id) {
@@ -160,14 +172,9 @@ impl FanController {
     }
 }
 
-/// Linear interpolation on a fan curve
 fn interpolate_curve(points: &[CurvePoint], temp: f32) -> u8 {
-    if temp <= points[0].temp_c as f32 {
-        return points[0].speed_pct;
-    }
-    if temp >= points[points.len() - 1].temp_c as f32 {
-        return points[points.len() - 1].speed_pct;
-    }
+    if temp <= points[0].temp_c as f32 { return points[0].speed_pct; }
+    if temp >= points[points.len() - 1].temp_c as f32 { return points[points.len() - 1].speed_pct; }
     for window in points.windows(2) {
         let t0 = window[0].temp_c as f32;
         let t1 = window[1].temp_c as f32;

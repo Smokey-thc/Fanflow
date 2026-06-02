@@ -28,4 +28,9 @@ pub enum IpcMessage {
         fan_id: String,
         label: String,
     },
+    /// Save a per-fan curve as part of the Custom profile
+    SaveCustomProfile {
+        fan_id: String,
+        points: Vec<CurvePoint>,
+    },
 }

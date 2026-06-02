@@ -103,7 +103,8 @@ fn main() -> anyhow::Result<()> {
             ctrl.tick();
             ticks += 1;
             let fans = ctrl.get_all_fans();
-            let payload = json!({ "type": "fan_update", "fans": fans });
+            let custom_profile = ctrl.get_custom_profile().clone();
+            let payload = json!({ "type": "fan_update", "fans": fans, "custom_profile": custom_profile });
             let _ = sender.send(payload.to_string());
         }
     });
@@ -255,6 +256,10 @@ fn handle_ipc_message(raw: &str, controller: Arc<Mutex<FanController>>) {
             for id in ids {
                 ctrl.reset_to_default(&id);
             }
+        }
+        IpcMessage::SaveCustomProfile { fan_id, points } => {
+            let mut ctrl = controller.lock().unwrap();
+            ctrl.save_custom_curve(&fan_id, points);
         }
     }
 }

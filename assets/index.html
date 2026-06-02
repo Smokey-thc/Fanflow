@@ -510,6 +510,66 @@
     font-family: 'JetBrains Mono', monospace;
   }
 
+  /* ─── PROFILE BAR ───────────────────────────────────────── */
+  #profile-bar {
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    height: 44px;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--border);
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .profile-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-right: 6px;
+  }
+
+  .profile-btn {
+    padding: 5px 16px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .3px;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid var(--border-hi);
+    background: transparent;
+    color: var(--text-dim);
+    transition: all .15s;
+  }
+  .profile-btn:hover { color: var(--text); background: var(--bg3); }
+  .profile-btn.active {
+    background: var(--bg3);
+    color: var(--accent2);
+    border-color: rgba(14,165,233,.4);
+  }
+  .profile-btn[data-profile="gaming"].active {
+    color: #f87171;
+    border-color: rgba(248,113,113,.4);
+  }
+  .profile-btn[data-profile="silent"].active {
+    color: var(--ok);
+    border-color: rgba(16,185,129,.4);
+  }
+  .profile-btn[data-profile="custom"].active {
+    color: var(--warn);
+    border-color: rgba(245,158,11,.4);
+  }
+
+  .profile-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+
   .hidden { display: none !important; }
 
   ::-webkit-scrollbar { width: 4px; }
@@ -533,6 +593,16 @@
     <button class="tb-btn" id="btn-rescan">↺ Rescan</button>
     <button class="tb-btn tb-btn-danger" id="btn-reset-all">Reset All to BIOS</button>
   </div>
+</div>
+
+<!-- PROFILE BAR -->
+<div id="profile-bar">
+  <span class="profile-label">Profile</span>
+  <button class="profile-btn" data-profile="silent">Silent</button>
+  <button class="profile-btn" data-profile="balanced">Balanced</button>
+  <button class="profile-btn" data-profile="gaming">Gaming</button>
+  <div class="profile-sep"></div>
+  <button class="profile-btn active" data-profile="custom">Custom</button>
 </div>
 
 <!-- APP -->
@@ -634,16 +704,22 @@
 </div><!-- /app -->
 
 <script>
+// ── Predefined profiles ───────────────────────────────────────────
+const PROFILES = {
+  silent:   [{ temp:30,speed:15 }, { temp:50,speed:25 }, { temp:70,speed:40 }, { temp:85,speed:60 }, { temp:95,speed:80 }],
+  balanced: [{ temp:30,speed:20 }, { temp:50,speed:35 }, { temp:70,speed:60 }, { temp:85,speed:85 }, { temp:95,speed:100 }],
+  gaming:   [{ temp:30,speed:35 }, { temp:50,speed:55 }, { temp:65,speed:75 }, { temp:80,speed:90 }, { temp:90,speed:100 }],
+};
+
 // ── State ────────────────────────────────────────────────────────
 let fans = [];
 let selectedFan = null;
 let currentMode = 'auto';
 let fixedSpeed = 50;
-let curvePoints = [
-  { temp: 30, speed: 20 }, { temp: 50, speed: 35 },
-  { temp: 70, speed: 65 }, { temp: 85, speed: 90 }, { temp: 95, speed: 100 },
-];
+let curvePoints = [...PROFILES.balanced];
 let draggingPoint = null;
+let activeProfile = 'balanced';
+let customProfileData = {}; // fan_id → [{temp,speed}]
 
 // ── IPC ──────────────────────────────────────────────────────────
 function sendToRust(msg) {
@@ -652,7 +728,20 @@ function sendToRust(msg) {
 }
 
 window.__rustUpdate = function(data) {
-  if (data.type === 'fan_update') updateFans(data.fans);
+  if (data.type === 'fan_update') {
+    // Update saved custom profile from Rust
+    if (data.custom_profile) {
+      customProfileData = {};
+      for (const [fanId, pts] of Object.entries(data.custom_profile)) {
+        customProfileData[fanId] = pts.map(p => ({ temp: p.temp_c, speed: p.speed_pct }));
+      }
+      // If any custom curves exist and no preset is active, show Custom
+      if (Object.keys(customProfileData).length > 0 && activeProfile !== 'custom') {
+        // don't override user's active selection on each tick — only on first load
+      }
+    }
+    updateFans(data.fans);
+  }
 };
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -758,9 +847,16 @@ function selectFan(fan) {
   selectedFan = fan;
   currentMode = fan.mode || 'auto';
   fixedSpeed = fan.speed_pct ?? 50;
-  curvePoints = fan.curve?.length >= 2
-    ? fan.curve.map(p => ({ temp: p.temp_c, speed: p.speed_pct }))
-    : [{ temp:30,speed:20 }, { temp:50,speed:35 }, { temp:70,speed:65 }, { temp:85,speed:90 }, { temp:95,speed:100 }];
+  // Load curve from: active profile preset → saved custom → fan's active curve → balanced default
+  if (activeProfile !== 'custom' && PROFILES[activeProfile]) {
+    curvePoints = PROFILES[activeProfile].map(p => ({ ...p }));
+  } else if (customProfileData[fan.id]?.length >= 2) {
+    curvePoints = customProfileData[fan.id].map(p => ({ ...p }));
+  } else if (fan.curve?.length >= 2) {
+    curvePoints = fan.curve.map(p => ({ temp: p.temp_c, speed: p.speed_pct }));
+  } else {
+    curvePoints = PROFILES.balanced.map(p => ({ ...p }));
+  }
   document.getElementById('no-selection').classList.add('hidden');
   document.getElementById('editor').classList.remove('hidden');
   refreshEditor(fan);
@@ -1035,15 +1131,68 @@ document.getElementById('speed-slider').addEventListener('input', e => {
   updateRpmEstimate(fixedSpeed);
 });
 
+// ── Profile switching ─────────────────────────────────────────────
+function setActiveProfile(name) {
+  activeProfile = name;
+  document.querySelectorAll('.profile-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.profile === name));
+}
+
+function applyProfileToAllFans(profileName) {
+  const pts = PROFILES[profileName];
+  if (!pts) return;
+  fans.filter(f => f.controllable && !f.is_pump).forEach(f => {
+    const rustPts = pts.map(p => ({ temp_c: p.temp, speed_pct: p.speed }));
+    sendToRust({ type:'set_curve', fan_id:f.id, points:rustPts });
+  });
+  // Update curve editor if a fan is selected
+  if (selectedFan && currentMode === 'curve') {
+    curvePoints = pts.map(p => ({ ...p }));
+    drawCurve();
+  }
+}
+
+document.querySelectorAll('.profile-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = btn.dataset.profile;
+    setActiveProfile(p);
+    if (p === 'custom') {
+      // Restore saved custom curves for each fan
+      fans.filter(f => f.controllable && !f.is_pump).forEach(f => {
+        const saved = customProfileData[f.id];
+        if (saved && saved.length >= 2) {
+          const rustPts = saved.map(p => ({ temp_c: p.temp, speed_pct: p.speed }));
+          sendToRust({ type:'set_curve', fan_id:f.id, points:rustPts });
+        }
+      });
+      // Update editor
+      if (selectedFan) {
+        const saved = customProfileData[selectedFan.id];
+        if (saved && saved.length >= 2) {
+          curvePoints = saved.map(p => ({ ...p }));
+          if (currentMode === 'curve') drawCurve();
+        }
+      }
+    } else {
+      applyProfileToAllFans(p);
+    }
+  });
+});
+
 // ── Apply / Reset ─────────────────────────────────────────────────
 document.getElementById('btn-apply').addEventListener('click', () => {
   if (!selectedFan) return;
   if (currentMode === 'curve') {
     const sorted = [...curvePoints].sort((a,b) => a.temp-b.temp);
-    sendToRust({ type:'set_curve', fan_id:selectedFan.id,
-      points: sorted.map(p => ({ temp_c:p.temp, speed_pct:p.speed })) });
+    const rustPts = sorted.map(p => ({ temp_c:p.temp, speed_pct:p.speed }));
+    sendToRust({ type:'set_curve', fan_id:selectedFan.id, points:rustPts });
+    // Save to custom profile and switch profile indicator to Custom
+    sendToRust({ type:'save_custom_profile', fan_id:selectedFan.id, points:rustPts });
+    customProfileData[selectedFan.id] = sorted.map(p => ({ ...p }));
+    setActiveProfile('custom');
   } else if (currentMode === 'fixed') {
     sendToRust({ type:'set_speed', fan_id:selectedFan.id, rpm_percent:fixedSpeed });
+    setActiveProfile('custom');
   }
   const s = document.getElementById('save-msg');
   s.style.opacity = 1;
