@@ -111,8 +111,8 @@ assets/
 - [ ] **Windows `.exe`**: port GUI layer to `wry` + WebView2 (`#[cfg(windows)]`),
       hardware logic stays the same
 - [ ] AMD GPU control — test and expand
-- [ ] Autostart (systemd user service)
-- [ ] Save / load curve profiles
+- [x] Autostart (systemd user service)
+- [x] Save / load curve profiles
 
 ## License
 
