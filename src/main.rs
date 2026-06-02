@@ -213,10 +213,19 @@ fn setup_permissions() {
     let ok = (|| -> anyhow::Result<()> {
         use std::io::Write as _;
 
-        // 1. udev rule — makes hwmon pwm files permanently writable after every boot.
-        //    No more `sudo tee` needed for motherboard fans.
-        let udev_rule = "ACTION==\"add\", SUBSYSTEM==\"hwmon\", \
-            RUN+=\"/bin/sh -c 'chmod a+w /sys%p/pwm* /sys%p/pwm*_enable 2>/dev/null; true'\"\n";
+        // 1. Create hwmon group and add the user to it (secure: only group members
+        //    can write fan files, not every process on the system).
+        std::process::Command::new("sudo")
+            .args(["groupadd", "-f", "hwmon"])
+            .status()?;
+        std::process::Command::new("sudo")
+            .args(["usermod", "-aG", "hwmon", &user])
+            .status()?;
+
+        // 2. udev rule — sets group ownership + group-writable on hwmon pwm files.
+        let udev_rule = "SUBSYSTEM==\"hwmon\", ACTION==\"add\", \
+            RUN+=\"/bin/sh -c 'chown root:hwmon /sys%p/pwm* /sys%p/pwm*_enable 2>/dev/null; \
+            chmod 0664 /sys%p/pwm* /sys%p/pwm*_enable 2>/dev/null; true'\"\n";
         let mut child = std::process::Command::new("sudo")
             .args(["tee", "/etc/udev/rules.d/60-fancontroller.rules"])
             .stdin(std::process::Stdio::piped())
@@ -225,15 +234,17 @@ fn setup_permissions() {
         child.stdin.as_mut().unwrap().write_all(udev_rule.as_bytes())?;
         child.wait()?;
 
-        // Apply immediately for this session (don't wait for next reboot)
+        // Apply immediately without waiting for reboot.
         std::process::Command::new("sudo")
             .args(["sh", "-c",
-                "chmod a+w /sys/class/hwmon/hwmon*/pwm[0-9] \
-                           /sys/class/hwmon/hwmon*/pwm[0-9]_enable 2>/dev/null; \
+                "chown root:hwmon /sys/class/hwmon/hwmon*/pwm[0-9] \
+                                  /sys/class/hwmon/hwmon*/pwm[0-9]_enable 2>/dev/null; \
+                 chmod 0664 /sys/class/hwmon/hwmon*/pwm[0-9] \
+                            /sys/class/hwmon/hwmon*/pwm[0-9]_enable 2>/dev/null; \
                  udevadm control --reload-rules"])
             .status()?;
 
-        // 2. sudoers rule — only needed for NVIDIA NVML (--gpu-set / --gpu-reset).
+        // 3. sudoers rule — only for NVIDIA NVML (--gpu-set / --gpu-reset).
         let sudoers = format!(
             "{user} ALL=(ALL) NOPASSWD: {exe} --gpu-set *\n\
              {user} ALL=(ALL) NOPASSWD: {exe} --gpu-reset *\n"
@@ -253,8 +264,10 @@ fn setup_permissions() {
     })();
 
     match ok {
-        Ok(()) => eprintln!("Setup complete — no password needed from now on."),
-        Err(e) => eprintln!("Setup failed ({e}). Fan control may require the password on each start."),
+        Ok(()) => eprintln!(
+            "Setup complete. NOTE: log out and back in once so your user joins the hwmon group."
+        ),
+        Err(e) => eprintln!("Setup failed ({e})."),
     }
 }
 
