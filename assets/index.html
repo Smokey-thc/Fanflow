@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FanCurve</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg0: #080a0f;
+    --bg1: #0d1117;
+    --bg2: #131920;
+    --bg3: #1a2230;
+    --bg4: #212b3a;
+    --border: #1e2d42;
+    --border-hi: #2a4060;
+    --accent: #0ea5e9;
+    --accent2: #38bdf8;
+    --nvidia: #76b900;
+    --amd: #ed1c24;
+    --sys: #f59e0b;
+    --pump: #a78bfa;
+    --text: #cbd5e1;
+    --text-dim: #4b6080;
+    --text-mid: #7a90aa;
+    --danger: #ef4444;
+    --ok: #10b981;
+    --warn: #f59e0b;
+    --temp-cool: #10b981;
+    --temp-warm: #f59e0b;
+    --temp-hot: #ef4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg0);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ─── TITLEBAR ─────────────────────────────────────── */
+  #titlebar {
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    height: 52px;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--border);
+    gap: 10px;
+    flex-shrink: 0;
+    -webkit-app-region: drag;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #fff;
+    text-transform: uppercase;
+  }
+
+  .logo-icon {
+    width: 30px; height: 30px;
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  #titlebar-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    -webkit-app-region: no-drag;
+  }
+
+  .tb-btn {
+    padding: 5px 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid var(--border-hi);
+    background: transparent;
+    color: var(--text-mid);
+    transition: all .15s;
+    letter-spacing: .3px;
+  }
+  .tb-btn:hover { color: var(--text); border-color: var(--text-mid); background: var(--bg3); }
+
+  .tb-btn-danger { color: var(--danger) !important; border-color: rgba(239,68,68,.3) !important; }
+  .tb-btn-danger:hover { background: rgba(239,68,68,.08) !important; border-color: var(--danger) !important; }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+    padding: 4px 10px;
+    background: var(--bg2);
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+  .status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 5px var(--ok);
+    animation: blink 2.5s ease infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ─── LAYOUT ────────────────────────────────────────── */
+  #app { display: grid; grid-template-columns: 272px 1fr; flex: 1; overflow: hidden; }
+
+  /* ─── SIDEBAR ───────────────────────────────────────── */
+  #sidebar {
+    background: var(--bg1);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #sidebar-scroll { overflow-y: auto; flex: 1; padding: 8px 0 12px; }
+  #sidebar-scroll::-webkit-scrollbar { width: 3px; }
+  #sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+  #sidebar-scroll::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+
+  .section-header {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 12px 16px 5px;
+    font-weight: 600;
+  }
+
+  .fan-item {
+    margin: 1px 8px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all .12s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .fan-item:hover { background: var(--bg2); border-color: var(--border); }
+  .fan-item.active {
+    background: linear-gradient(135deg, rgba(14,165,233,.08), rgba(99,102,241,.05));
+    border-color: rgba(14,165,233,.25);
+  }
+
+  .fan-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .dot-sys { background: var(--sys); box-shadow: 0 0 6px rgba(245,158,11,.4); }
+  .dot-nvidia { background: var(--nvidia); box-shadow: 0 0 6px rgba(118,185,0,.4); }
+  .dot-amd { background: var(--amd); box-shadow: 0 0 6px rgba(237,28,36,.4); }
+  .dot-pump { background: var(--pump); box-shadow: 0 0 6px rgba(167,139,250,.4); }
+
+  .fan-item-body { flex: 1; min-width: 0; }
+  .fan-item-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fan-item-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .speed-bar-wrap { height: 2px; background: var(--bg3); border-radius: 1px; margin-top: 5px; }
+  .speed-bar { height: 100%; border-radius: 1px; transition: width .6s ease; }
+  .bar-sys { background: linear-gradient(90deg, var(--sys), #fbbf24); }
+  .bar-nvidia { background: linear-gradient(90deg, var(--nvidia), #84cc16); }
+  .bar-amd { background: linear-gradient(90deg, var(--amd), #f87171); }
+  .bar-pump { background: linear-gradient(90deg, var(--pump), #c4b5fd); }
+  .bar-accent { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+  .fan-badge {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    align-self: flex-start;
+  }
+  .badge-auto { background: rgba(75,96,128,.2); color: var(--text-dim); }
+  .badge-curve { background: rgba(14,165,233,.15); color: var(--accent2); }
+  .badge-fixed { background: rgba(245,158,11,.15); color: var(--warn); }
+  .badge-pump { background: rgba(167,139,250,.15); color: var(--pump); }
+
+  /* ─── MAIN PANEL ─────────────────────────────────────── */
+  #main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg0); }
+
+  /* Empty state */
+  #no-selection {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-dim);
+  }
+  #no-selection .hint-icon { font-size: 48px; opacity: .15; }
+  #no-selection p { font-size: 14px; font-weight: 500; letter-spacing: .5px; }
+
+  /* Fan header */
+  #fan-header {
+    padding: 18px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 100%);
+    flex-shrink: 0;
+  }
+
+  .fan-header-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .fan-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #ed-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: .5px;
+  }
+
+  #btn-rename {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 3px 5px;
+    border-radius: 4px;
+    transition: all .15s;
+  }
+  #btn-rename:hover { color: var(--accent); background: rgba(14,165,233,.1); }
+
+  #ed-meta {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  .mode-pills {
+    display: flex;
+    gap: 4px;
+    background: var(--bg0);
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .mode-pill {
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .3px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    border-radius: 6px;
+    transition: all .15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .mode-pill:hover { color: var(--text); }
+  .mode-pill.active { background: var(--bg3); color: var(--accent2); }
+
+  /* Stat row */
+  .stat-row {
+    display: flex;
+    gap: 0;
+  }
+  .stat-card {
+    flex: 1;
+    padding: 12px 16px;
+    border-right: 1px solid var(--border);
+    position: relative;
+  }
+  .stat-card:last-child { border-right: none; }
+  .stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 26px;
+    font-weight: 300;
+    line-height: 1;
+  }
+  .stat-unit { font-size: 11px; color: var(--text-dim); margin-left: 2px; }
+  .stat-bar { margin-top: 6px; height: 2px; background: var(--bg3); border-radius: 1px; }
+  .stat-bar-fill { height: 100%; border-radius: 1px; transition: width .5s ease; background: var(--accent); }
+
+  .temp-cool { color: var(--temp-cool); }
+  .temp-warm { color: var(--temp-warm); }
+  .temp-hot  { color: var(--temp-hot); }
+
+  /* Editor */
+  #editor { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Auto mode */
+  #auto-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px;
+  }
+  .auto-circle {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: 2px solid var(--border-hi);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    animation: spin-slow 8s linear infinite;
+  }
+  @keyframes spin-slow { to { transform: rotate(360deg); } }
+  #auto-section h3 { font-size: 15px; font-weight: 600; color: var(--text); }
+  #auto-section p { font-size: 12px; color: var(--text-dim); text-align: center; max-width: 260px; }
+
+  /* Curve section */
+  #curve-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  #curve-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+  .canvas-hint {
+    position: absolute;
+    bottom: 10px; right: 12px;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    pointer-events: none;
+    letter-spacing: .3px;
+  }
+
+  /* Fixed section */
+  #fixed-section {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 28px;
+    padding: 20px;
+  }
+
+  .speed-dial {
+    position: relative;
+    width: 210px; height: 210px;
+  }
+  .speed-dial canvas { width: 100%; height: 100%; }
+  .dial-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .dial-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 48px;
+    font-weight: 300;
+    color: var(--accent2);
+    line-height: 1;
+  }
+  .dial-label { font-size: 11px; color: var(--text-dim); letter-spacing: 2px; margin-top: 4px; }
+
+  #speed-slider {
+    width: 300px;
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  #speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(14,165,233,.5);
+    transition: box-shadow .15s;
+  }
+  #speed-slider::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 16px rgba(14,165,233,.7);
+  }
+
+  /* Action bar */
+  #action-bar {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--bg1);
+    flex-shrink: 0;
+  }
+
+  .btn {
+    padding: 7px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .3px;
+    cursor: pointer;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    transition: all .15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn-primary:hover { background: var(--accent2); box-shadow: 0 0 16px rgba(14,165,233,.3); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-mid);
+    border-color: var(--border-hi);
+  }
+  .btn-secondary:hover { color: var(--text); background: var(--bg3); }
+
+  #save-msg {
+    margin-left: auto;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--ok);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+
+  .no-perm-banner {
+    margin: 6px 8px 0;
+    padding: 6px 10px;
+    background: rgba(239,68,68,.06);
+    border: 1px solid rgba(239,68,68,.25);
+    border-radius: 6px;
+    font-size: 10px;
+    color: var(--danger);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .hidden { display: none !important; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div id="titlebar">
+  <div class="logo">
+    <div class="logo-icon">⟳</div>
+    FanCurve
+  </div>
+  <div class="status-pill">
+    <div class="status-dot"></div>
+    <span id="fan-count">–</span>
+  </div>
+  <div id="titlebar-actions">
+    <button class="tb-btn" id="btn-rescan">↺ Rescan</button>
+    <button class="tb-btn tb-btn-danger" id="btn-reset-all">Reset All to BIOS</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-scroll">
+      <div class="section-header" style="padding-top:14px">Detected Fans</div>
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <div id="no-selection">
+      <div class="hint-icon">⟳</div>
+      <p>Select a fan to configure</p>
+    </div>
+
+    <div id="editor" class="hidden">
+
+      <div id="fan-header">
+        <div class="fan-header-top">
+          <div>
+            <div class="fan-title-row">
+              <div id="ed-title">—</div>
+              <button id="btn-rename" title="Rename">✎</button>
+            </div>
+            <div id="ed-meta">—</div>
+          </div>
+          <div class="mode-pills">
+            <button class="mode-pill" data-mode="auto">Auto</button>
+            <button class="mode-pill" data-mode="curve">Curve</button>
+            <button class="mode-pill" data-mode="fixed">Fixed</button>
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-card">
+            <div class="stat-label">RPM</div>
+            <div class="stat-value" id="stat-rpm">–<span class="stat-unit">rpm</span></div>
+            <div class="stat-bar"><div class="stat-bar-fill" id="stat-rpm-bar" style="width:0%"></div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Speed</div>
+            <div class="stat-value" id="stat-speed">–<span class="stat-unit">%</span></div>
+            <div class="stat-bar"><div class="stat-bar-fill" id="stat-speed-bar" style="width:0%"></div></div>
+          </div>
+          <div class="stat-card" id="stat-temp-card">
+            <div class="stat-label">Temperature</div>
+            <div class="stat-value" id="stat-temp">–<span class="stat-unit">°C</span></div>
+            <div class="stat-bar"><div class="stat-bar-fill" id="stat-temp-bar" style="width:0%"></div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Mode</div>
+            <div class="stat-value" id="stat-mode" style="font-size:16px;padding-top:6px">–</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AUTO -->
+      <div id="auto-section" class="hidden">
+        <div class="auto-circle">⟳</div>
+        <h3>Automatic control active</h3>
+        <p>The OS / motherboard controls the fan speed based on temperature.</p>
+      </div>
+
+      <!-- CURVE -->
+      <div id="curve-section" class="hidden">
+        <div id="canvas-wrap">
+          <canvas id="curve-canvas"></canvas>
+          <div class="canvas-hint">Click = add point · Right-click = remove</div>
+        </div>
+      </div>
+
+      <!-- FIXED -->
+      <div id="fixed-section" class="hidden">
+        <div class="speed-dial">
+          <canvas id="dial-canvas" width="210" height="210"></canvas>
+          <div class="dial-center">
+            <div class="dial-num" id="dial-num">50</div>
+            <div class="dial-label">PERCENT</div>
+          </div>
+        </div>
+        <input type="range" id="speed-slider" min="0" max="100" value="50">
+        <div id="rpm-estimate" style="font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);margin-top:4px;text-align:center;min-height:18px"></div>
+      </div>
+
+      <!-- ACTION BAR -->
+      <div id="action-bar">
+        <button class="btn btn-primary" id="btn-apply">Apply</button>
+        <button class="btn btn-secondary" id="btn-reset">↺ Reset to BIOS</button>
+        <span id="save-msg">✓ Applied</span>
+      </div>
+
+    </div><!-- /editor -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── State ────────────────────────────────────────────────────────
+let fans = [];
+let selectedFan = null;
+let currentMode = 'auto';
+let fixedSpeed = 50;
+let curvePoints = [
+  { temp: 30, speed: 20 }, { temp: 50, speed: 35 },
+  { temp: 70, speed: 65 }, { temp: 85, speed: 90 }, { temp: 95, speed: 100 },
+];
+let draggingPoint = null;
+
+// ── IPC ──────────────────────────────────────────────────────────
+function sendToRust(msg) {
+  if (window.ipc) window.ipc.postMessage(JSON.stringify(msg));
+  else console.log('[→ Rust]', msg);
+}
+
+window.__rustUpdate = function(data) {
+  if (data.type === 'fan_update') updateFans(data.fans);
+};
+
+// ── Helpers ──────────────────────────────────────────────────────
+function tempColor(c) {
+  if (c == null) return '';
+  if (c < 50) return 'temp-cool';
+  if (c < 75) return 'temp-warm';
+  return 'temp-hot';
+}
+
+function dotClass(fan) {
+  if (fan.is_pump) return 'dot-pump';
+  if (fan.fan_type === 'nvidia') return 'dot-nvidia';
+  if (fan.fan_type === 'amd') return 'dot-amd';
+  return 'dot-sys';
+}
+
+function barClass(fan) {
+  if (fan.is_pump) return 'bar-pump';
+  if (fan.fan_type === 'nvidia') return 'bar-nvidia';
+  if (fan.fan_type === 'amd') return 'bar-amd';
+  return 'bar-sys';
+}
+
+// ── Fan list ─────────────────────────────────────────────────────
+function updateFans(newFans) {
+  const prevId = selectedFan?.id;
+  fans = newFans;
+
+  document.getElementById('fan-count').textContent = `${fans.length} fans`;
+
+  const sidebar = document.getElementById('sidebar-scroll');
+  sidebar.innerHTML = '';
+
+  const anyCtrl = fans.some(f => f.controllable);
+  if (!anyCtrl && fans.length > 0) {
+    const b = document.createElement('div');
+    b.className = 'no-perm-banner';
+    b.textContent = '⚠ No write access — run once to set up permissions.';
+    sidebar.appendChild(b);
+  }
+
+  const groups = { nvidia: [], amd: [], pump: [], system: [] };
+  fans.forEach(f => {
+    if (f.is_pump) groups.pump.push(f);
+    else if (f.fan_type === 'nvidia') groups.nvidia.push(f);
+    else if (f.fan_type === 'amd') groups.amd.push(f);
+    else groups.system.push(f);
+  });
+
+  const fanNum = f => parseInt(f.label.replace(/\D/g,'')) || parseInt(f.id.replace(/.*fan(\d+)$/,'$1')) || 0;
+  groups.system.sort((a,b) => fanNum(a) - fanNum(b));
+
+  const render = (label, arr) => {
+    if (!arr.length) return;
+    const hdr = document.createElement('div');
+    hdr.className = 'section-header';
+    hdr.textContent = label;
+    sidebar.appendChild(hdr);
+    arr.forEach(fan => {
+      const el = document.createElement('div');
+      el.className = 'fan-item' + (fan.id === prevId ? ' active' : '');
+      el.dataset.fanId = fan.id;
+
+      const modeLabel = fan.is_pump ? 'PUMP'
+        : { auto:'AUTO', curve:'CURVE', fixed:'FIXED' }[fan.mode] || 'AUTO';
+      const badgeCls = fan.is_pump ? 'badge-pump'
+        : { auto:'badge-auto', curve:'badge-curve', fixed:'badge-fixed' }[fan.mode] || 'badge-auto';
+
+      const rpmStr = fan.rpm != null ? `${fan.rpm} rpm` : (fan.speed_pct != null ? `${fan.speed_pct}%` : '–');
+      const tempStr = fan.temp_c != null ? ` · ${fan.temp_c.toFixed(0)}°C` : '';
+      const speedPct = fan.speed_pct != null ? fan.speed_pct : (fan.rpm != null && fan.rpm_max ? Math.round(fan.rpm / fan.rpm_max * 100) : 0);
+
+      el.innerHTML = `
+        <div class="fan-dot ${dotClass(fan)}"></div>
+        <div class="fan-item-body">
+          <div class="fan-item-name">${fan.label}</div>
+          <div class="fan-item-sub">${rpmStr}${tempStr}</div>
+          <div class="speed-bar-wrap"><div class="speed-bar ${barClass(fan)}" style="width:${speedPct}%"></div></div>
+        </div>
+        <span class="fan-badge ${badgeCls}">${modeLabel}</span>`;
+
+      el.addEventListener('click', () => selectFan(fan));
+      sidebar.appendChild(el);
+    });
+  };
+
+  render('NVIDIA GPU', groups.nvidia);
+  render('AMD GPU', groups.amd);
+  render('Pumps', groups.pump);
+  render('System', groups.system);
+
+  if (prevId) {
+    const updated = fans.find(f => f.id === prevId);
+    if (updated) refreshEditor(updated);
+  }
+}
+
+function selectFan(fan) {
+  document.querySelectorAll('.fan-item').forEach(el => el.classList.remove('active'));
+  const el = document.querySelector(`[data-fan-id="${fan.id}"]`);
+  if (el) el.classList.add('active');
+  selectedFan = fan;
+  currentMode = fan.mode || 'auto';
+  fixedSpeed = fan.speed_pct ?? 50;
+  curvePoints = fan.curve?.length >= 2
+    ? fan.curve.map(p => ({ temp: p.temp_c, speed: p.speed_pct }))
+    : [{ temp:30,speed:20 }, { temp:50,speed:35 }, { temp:70,speed:65 }, { temp:85,speed:90 }, { temp:95,speed:100 }];
+  document.getElementById('no-selection').classList.add('hidden');
+  document.getElementById('editor').classList.remove('hidden');
+  refreshEditor(fan);
+}
+
+function refreshEditor(fan) {
+  document.getElementById('ed-title').textContent = fan.label;
+  const typeLabel = { nvidia:'NVIDIA GPU', amd:'AMD GPU', system:'System' }[fan.fan_type] || '';
+  const pumpNote = fan.is_pump ? ' · PUMP' : '';
+  const rwNote = fan.controllable ? '' : ' · READ-ONLY';
+  document.getElementById('ed-meta').textContent = `${typeLabel}${pumpNote} · ${fan.id}${rwNote}`;
+
+  // RPM stat
+  const rpmEl = document.getElementById('stat-rpm');
+  if (fan.rpm != null) {
+    rpmEl.innerHTML = `${fan.rpm}<span class="stat-unit">rpm</span>`;
+    const rpmPct = fan.rpm_max ? Math.min(100, Math.round(fan.rpm / fan.rpm_max * 100)) : (fan.speed_pct ?? 0);
+    document.getElementById('stat-rpm-bar').style.width = rpmPct + '%';
+  } else {
+    rpmEl.innerHTML = `–<span class="stat-unit">rpm</span>`;
+    document.getElementById('stat-rpm-bar').style.width = '0%';
+  }
+
+  // Speed stat
+  const speedEl = document.getElementById('stat-speed');
+  if (fan.speed_pct != null) {
+    speedEl.innerHTML = `${fan.speed_pct}<span class="stat-unit">%</span>`;
+    document.getElementById('stat-speed-bar').style.width = fan.speed_pct + '%';
+  } else {
+    speedEl.innerHTML = `–<span class="stat-unit">%</span>`;
+    document.getElementById('stat-speed-bar').style.width = '0%';
+  }
+
+  // Temperature
+  const tempCard = document.getElementById('stat-temp-card');
+  const tempEl = document.getElementById('stat-temp');
+  if (fan.temp_c != null) {
+    tempCard.style.display = '';
+    const cls = tempColor(fan.temp_c);
+    tempEl.className = `stat-value ${cls}`;
+    tempEl.innerHTML = `${fan.temp_c.toFixed(1)}<span class="stat-unit">°C</span>`;
+    const tempPct = Math.min(100, Math.max(0, (fan.temp_c - 20) / 80 * 100));
+    const barColor = fan.temp_c < 50 ? 'var(--temp-cool)' : fan.temp_c < 75 ? 'var(--temp-warm)' : 'var(--temp-hot)';
+    const bar = document.getElementById('stat-temp-bar');
+    bar.style.width = tempPct + '%';
+    bar.style.background = barColor;
+  } else {
+    tempCard.style.display = 'none';
+  }
+
+  // Mode
+  document.getElementById('stat-mode').textContent =
+    { auto:'Auto', curve:'Curve', fixed:'Fixed' }[fan.mode] || '–';
+
+  setMode(currentMode, false);
+}
+
+// ── Mode switching ────────────────────────────────────────────────
+function setMode(mode, fromUser = true) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-pill').forEach(p =>
+    p.classList.toggle('active', p.dataset.mode === mode));
+  document.getElementById('auto-section').classList.toggle('hidden', mode !== 'auto');
+  document.getElementById('curve-section').classList.toggle('hidden', mode !== 'curve');
+  document.getElementById('fixed-section').classList.toggle('hidden', mode !== 'fixed');
+  if (mode === 'curve') requestAnimationFrame(drawCurve);
+  if (mode === 'fixed') { drawDial(fixedSpeed); updateRpmEstimate(fixedSpeed); }
+
+  // Hide action bar in Auto mode — the tab click already resets hardware
+  document.getElementById('action-bar').style.display =
+    mode === 'auto' ? 'none' : '';
+}
+
+document.querySelectorAll('.mode-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const prev = currentMode;
+    const mode = btn.dataset.mode;
+    setMode(mode);
+    if (!selectedFan) return;
+    // Auto: immediately reset hardware to BIOS
+    if (mode === 'auto') {
+      sendToRust({ type: 'reset_to_default', fan_id: selectedFan.id });
+    }
+    // Switching from Fixed to Curve: clear the fixed setting first
+    if (mode === 'curve' && prev === 'fixed') {
+      sendToRust({ type: 'reset_to_default', fan_id: selectedFan.id });
+    }
+  });
+});
+
+// ── Curve editor ──────────────────────────────────────────────────
+const canvas = document.getElementById('curve-canvas');
+const ctx = canvas.getContext('2d');
+
+new ResizeObserver(() => {
+  canvas.width  = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+  drawCurve();
+}).observe(document.getElementById('canvas-wrap'));
+
+const PAD = { left:52, right:20, top:20, bottom:44 };
+
+const tX = t => PAD.left + (t/100) * (canvas.width  - PAD.left - PAD.right);
+const sY = s => PAD.top  + (1 - s/100) * (canvas.height - PAD.top - PAD.bottom);
+const xT = x => Math.round(Math.max(0, Math.min(100, (x-PAD.left) / (canvas.width-PAD.left-PAD.right) * 100)));
+const yS = y => Math.round(Math.max(0, Math.min(100, (1 - (y-PAD.top) / (canvas.height-PAD.top-PAD.bottom)) * 100)));
+
+function drawCurve() {
+  if (!canvas.width) return;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(30,45,66,.8)';
+  ctx.lineWidth = 1;
+  for (let t=0; t<=100; t+=10) {
+    const x = tX(t);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, H-PAD.bottom); ctx.stroke();
+  }
+  for (let s=0; s<=100; s+=20) {
+    const y = sY(s);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W-PAD.right, y); ctx.stroke();
+  }
+
+  // Labels
+  ctx.fillStyle = '#4b6080';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  for (let t=0; t<=100; t+=10) ctx.fillText(t+'°', tX(t), H-PAD.bottom+16);
+  ctx.textAlign = 'right';
+  for (let s=0; s<=100; s+=20) ctx.fillText(s+'%', PAD.left-8, sY(s)+4);
+  ctx.fillStyle = '#2a4060';
+  ctx.font = '10px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('TEMPERATURE (°C)', W/2, H-6);
+
+  const sorted = [...curvePoints].sort((a,b) => a.temp-b.temp);
+
+  // Fill
+  const grad = ctx.createLinearGradient(0, PAD.top, 0, H-PAD.bottom);
+  grad.addColorStop(0, 'rgba(14,165,233,.18)');
+  grad.addColorStop(1, 'rgba(14,165,233,.02)');
+  ctx.beginPath();
+  ctx.moveTo(tX(sorted[0].temp), H-PAD.bottom);
+  sorted.forEach(p => ctx.lineTo(tX(p.temp), sY(p.speed)));
+  ctx.lineTo(tX(sorted[sorted.length-1].temp), H-PAD.bottom);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(14,165,233,.9)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = 'rgba(14,165,233,.5)';
+  ctx.shadowBlur = 8;
+  sorted.forEach((p,i) => i === 0 ? ctx.moveTo(tX(p.temp), sY(p.speed)) : ctx.lineTo(tX(p.temp), sY(p.speed)));
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Points
+  sorted.forEach(p => {
+    const x = tX(p.temp), y = sY(p.speed);
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI*2);
+    ctx.fillStyle = draggingPoint === p ? '#fff' : 'var(--accent2, #38bdf8)';
+    ctx.shadowColor = 'rgba(14,165,233,.8)';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#080a0f';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${p.temp}°/${p.speed}%`, x, y-12);
+  });
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 2) return;
+  const r = canvas.getBoundingClientRect();
+  const mx = (e.clientX-r.left) * (canvas.width/r.width);
+  const my = (e.clientY-r.top)  * (canvas.height/r.height);
+  const hit = curvePoints.find(p => {
+    const dx = tX(p.temp)-mx, dy = sY(p.speed)-my;
+    return Math.sqrt(dx*dx+dy*dy) < 12;
+  });
+  if (hit) { draggingPoint = hit; }
+  else { const n = { temp:xT(mx), speed:yS(my) }; curvePoints.push(n); draggingPoint = n; drawCurve(); }
+});
+canvas.addEventListener('mousemove', e => {
+  if (!draggingPoint) return;
+  const r = canvas.getBoundingClientRect();
+  draggingPoint.temp  = xT((e.clientX-r.left)*(canvas.width/r.width));
+  draggingPoint.speed = yS((e.clientY-r.top)*(canvas.height/r.height));
+  drawCurve();
+});
+canvas.addEventListener('mouseup', () => { draggingPoint = null; });
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  const mx = (e.clientX-r.left)*(canvas.width/r.width);
+  const my = (e.clientY-r.top)*(canvas.height/r.height);
+  const idx = curvePoints.findIndex(p => {
+    const dx = tX(p.temp)-mx, dy = sY(p.speed)-my;
+    return Math.sqrt(dx*dx+dy*dy) < 12;
+  });
+  if (idx >= 0 && curvePoints.length > 2) { curvePoints.splice(idx, 1); drawCurve(); }
+});
+
+// ── Fixed speed dial ──────────────────────────────────────────────
+// Estimate RPM for a given % based on current fan readings
+function estimateRpm(pct) {
+  if (!selectedFan) return null;
+  const f = selectedFan;
+  // Use rpm_max if available
+  if (f.rpm_max && f.rpm_max > 0) {
+    const min = f.rpm_min || 0;
+    return Math.round(min + (pct / 100) * (f.rpm_max - min));
+  }
+  // Estimate from live readings
+  if (f.rpm != null && f.rpm > 0 && f.speed_pct != null && f.speed_pct > 0) {
+    const maxEst = f.rpm / (f.speed_pct / 100);
+    return Math.round(maxEst * (pct / 100));
+  }
+  return null;
+}
+
+function updateRpmEstimate(pct) {
+  const el = document.getElementById('rpm-estimate');
+  const rpm = estimateRpm(pct);
+  el.textContent = rpm != null ? `${pct}%  ·  ~${rpm} rpm` : `${pct}%`;
+}
+
+function drawDial(pct) {
+  const dc = document.getElementById('dial-canvas');
+  const dctx = dc.getContext('2d');
+  const cx = 105, cy = 105, r = 86;
+  dctx.clearRect(0, 0, 210, 210);
+
+  dctx.beginPath();
+  dctx.arc(cx, cy, r, Math.PI*.75, Math.PI*2.25);
+  dctx.strokeStyle = 'rgba(30,45,66,.9)';
+  dctx.lineWidth = 10;
+  dctx.lineCap = 'round';
+  dctx.stroke();
+
+  if (pct > 0) {
+    const start = Math.PI*.75;
+    const end = start + (pct/100)*Math.PI*1.5;
+    const g = dctx.createLinearGradient(cx-r, cy, cx+r, cy);
+    g.addColorStop(0, '#0369a1');
+    g.addColorStop(1, '#38bdf8');
+    dctx.beginPath();
+    dctx.arc(cx, cy, r, start, end);
+    dctx.strokeStyle = g;
+    dctx.lineWidth = 10;
+    dctx.lineCap = 'round';
+    dctx.shadowColor = 'rgba(14,165,233,.4)';
+    dctx.shadowBlur = 14;
+    dctx.stroke();
+    dctx.shadowBlur = 0;
+  }
+  document.getElementById('dial-num').textContent = pct;
+}
+
+document.getElementById('speed-slider').addEventListener('input', e => {
+  fixedSpeed = parseInt(e.target.value);
+  drawDial(fixedSpeed);
+  updateRpmEstimate(fixedSpeed);
+});
+
+// ── Apply / Reset ─────────────────────────────────────────────────
+document.getElementById('btn-apply').addEventListener('click', () => {
+  if (!selectedFan) return;
+  if (currentMode === 'curve') {
+    const sorted = [...curvePoints].sort((a,b) => a.temp-b.temp);
+    sendToRust({ type:'set_curve', fan_id:selectedFan.id,
+      points: sorted.map(p => ({ temp_c:p.temp, speed_pct:p.speed })) });
+  } else if (currentMode === 'fixed') {
+    sendToRust({ type:'set_speed', fan_id:selectedFan.id, rpm_percent:fixedSpeed });
+  }
+  const s = document.getElementById('save-msg');
+  s.style.opacity = 1;
+  setTimeout(() => s.style.opacity = 0, 2000);
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (!selectedFan) return;
+  sendToRust({ type:'reset_to_default', fan_id:selectedFan.id });
+});
+
+document.getElementById('btn-rescan').addEventListener('click', () => {
+  sendToRust({ type:'rescan' });
+});
+
+document.getElementById('btn-reset-all').addEventListener('click', () => {
+  if (confirm('Reset ALL fans to automatic BIOS control?'))
+    sendToRust({ type:'reset_all' });
+});
+
+document.getElementById('btn-rename').addEventListener('click', () => {
+  if (!selectedFan) return;
+  const label = prompt('Rename fan:', document.getElementById('ed-title').textContent);
+  if (label && label.trim()) {
+    const l = label.trim();
+    sendToRust({ type:'rename_fan', fan_id:selectedFan.id, label:l });
+    document.getElementById('ed-title').textContent = l;
+    selectedFan.label = l;
+    const el = document.querySelector(`[data-fan-id="${selectedFan.id}"] .fan-item-name`);
+    if (el) el.textContent = l;
+  }
+});
+
+// ── Dev mode mock ─────────────────────────────────────────────────
+if (!window.ipc) {
+  updateFans([
+    { id:'nvidia:0', label:'RTX 2060', fan_type:'nvidia', is_pump:false, mode:'auto', rpm:1200, speed_pct:44, temp_c:35, curve:[], controllable:true, rpm_min:0, rpm_max:3000 },
+    { id:'hwmon:hwmon6/nct6798/fan1', label:'Fan 1', fan_type:'system', is_pump:false, mode:'auto', rpm:655, speed_pct:32, temp_c:32, curve:[], controllable:true, rpm_min:0, rpm_max:2200 },
+    { id:'hwmon:hwmon6/nct6798/fan2', label:'Fan 2', fan_type:'system', is_pump:false, mode:'auto', rpm:581, speed_pct:32, temp_c:32, curve:[], controllable:true, rpm_min:0, rpm_max:2200 },
+    { id:'hwmon:hwmon6/nct6798/fan4', label:'Fan 4', fan_type:'system', is_pump:false, mode:'auto', rpm:627, speed_pct:32, temp_c:32, curve:[], controllable:true, rpm_min:0, rpm_max:2200 },
+    { id:'hwmon:hwmon6/nct6798/fan5', label:'Fan 5', fan_type:'system', is_pump:false, mode:'auto', rpm:658, speed_pct:32, temp_c:32, curve:[], controllable:true, rpm_min:0, rpm_max:2200 },
+    { id:'hwmon:hwmon6/nct6798/fan6', label:'Pump', fan_type:'system', is_pump:true, mode:'auto', rpm:2941, speed_pct:100, temp_c:32, curve:[], controllable:true, rpm_min:0, rpm_max:4000 },
+    { id:'hwmon:hwmon6/nct6798/fan7', label:'Fan 7', fan_type:'system', is_pump:false, mode:'auto', rpm:0, speed_pct:71, temp_c:36, curve:[], controllable:true, rpm_min:0, rpm_max:2200 },
+  ]);
+}
+</script>
+</body>
+</html>

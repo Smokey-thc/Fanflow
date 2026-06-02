@@ -1,0 +1,48 @@
+[package]
+name = "fancontroller"
+version = "0.1.0"
+edition = "2021"
+description = "Fan controller for Linux with a native HTML GUI (hwmon + NVIDIA NVML)"
+authors = ["Smokey-thc"]
+license = "MIT"
+repository = "https://github.com/Smokey-thc/FanController"
+
+[[bin]]
+name = "fancontroller"
+path = "src/main.rs"
+
+[dependencies]
+# Error handling
+anyhow = "1"
+
+# GTK window + WebKit webview (direct, no wry/tao abstraction)
+gtk = "0.18"
+webkit2gtk = { version = "=2.0.2", features = ["v2_22", "v2_38"] }
+gio = "0.18"
+glib = "0.18"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# IPC between Rust and HTML frontend
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+nvml-wrapper = "0.12.1"
+
+# Hardware monitoring
+[target.'cfg(target_os = "linux")'.dependencies]
+# Read from /sys/class/hwmon
+glob = "0.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# WMI for Windows hardware access
+wmi = "0.14"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Wmi",
+] }
+
+[profile.release]
+strip = true
+lto = true
