@@ -175,6 +175,8 @@ impl FanBackend for HwmonBackend {
 
         let enable_path = base.join(format!("pwm{fan_num}_enable"));
         let pwm_path = base.join(format!("pwm{fan_num}"));
+        // Enforce minimum 20% — setting a CPU/system fan to 0 risks overheating.
+        let pct = pct.max(20);
         let pwm_val = (pct as u32 * 255 / 100).min(255);
         // enable=1 (manual) MUST come before writing the pwm value.
         // In Smart Fan IV (enable=5) the kernel rejects direct pwm writes.
