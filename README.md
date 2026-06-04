@@ -22,9 +22,10 @@ speeds — no browser required, no cloud, everything runs locally.
 - Custom fan labels (saved to `~/.config/fancontroller/config.json`)
 - One-time passwordless permission setup (sudoers) — no prompts after that
 
-> **Windows:** A `.exe` is planned but not yet available. The GUI currently uses
-> `webkit2gtk` which only builds on Linux. The Windows port (WebView2 via `wry`)
-> is tracked in the [Roadmap](#roadmap).
+> **Windows is not supported** and there are no plans to add it. Fan control on
+> Windows requires kernel-level drivers (Ring 0) to access hardware directly —
+> this is a fundamentally different and significantly more complex approach than
+> the Linux sysfs/hwmon interface. FanController is a Linux-only tool.
 
 ## Quick Install (Linux)
 
@@ -108,8 +109,6 @@ assets/
 
 ## Roadmap
 
-- [ ] **Windows `.exe`**: port GUI layer to `wry` + WebView2 (`#[cfg(windows)]`),
-      hardware logic stays the same
 - [ ] AMD GPU control — test and expand
 - [x] Autostart (systemd user service)
 - [x] Save / load curve profiles
