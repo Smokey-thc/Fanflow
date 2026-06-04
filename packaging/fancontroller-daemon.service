@@ -1,12 +1,14 @@
 [Unit]
-Description=FanController daemon — applies fan curves in the background
-After=graphical-session.target
+Description=FanController daemon — applies fan curves without the GUI
+After=default.target
 
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/fancontroller --daemon
 Restart=on-failure
 RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=5
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target

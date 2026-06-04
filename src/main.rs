@@ -131,25 +131,41 @@ fn run_daemon() -> anyhow::Result<()> {
         setup_permissions();
     }
 
-    // Write PID so the GUI can find and stop us.
     std::fs::write(DAEMON_PID_FILE, std::process::id().to_string()).ok();
 
-    let mut ctrl = FanController::new();
-    ctrl.scan_all();
-
-    // Apply every saved custom-profile curve immediately on start.
-    let custom = ctrl.get_custom_profile().clone();
-    for (fan_id, points) in custom {
-        if points.len() >= 2 {
-            let _ = ctrl.set_curve(&fan_id, points);
+    let ctrl = Arc::new(Mutex::new(FanController::new()));
+    {
+        let mut c = ctrl.lock().unwrap();
+        c.scan_all();
+        let custom = c.get_custom_profile().clone();
+        for (fan_id, points) in custom {
+            if points.len() >= 2 {
+                let _ = c.set_curve(&fan_id, points);
+            }
         }
+    }
+
+    // SIGTERM / SIGINT → reset all fans to BIOS control before exiting.
+    // systemd sends SIGTERM on `systemctl stop`; Ctrl-C sends SIGINT.
+    {
+        let ctrl_exit = Arc::clone(&ctrl);
+        ctrlc::set_handler(move || {
+            let mut c = ctrl_exit.lock().unwrap();
+            let ids: Vec<String> = c.get_all_fans().iter().map(|f| f.id.clone()).collect();
+            for id in &ids {
+                c.reset_to_default(id);
+            }
+            std::fs::remove_file(DAEMON_PID_FILE).ok();
+            std::process::exit(0);
+        }).ok();
     }
 
     let mut ticks = 0u32;
     loop {
         std::thread::sleep(std::time::Duration::from_millis(1000));
-        if ticks % 3 == 0 { ctrl.scan_all(); }
-        ctrl.tick();
+        let mut c = ctrl.lock().unwrap();
+        if ticks % 3 == 0 { c.scan_all(); }
+        c.tick();
         ticks += 1;
     }
 }

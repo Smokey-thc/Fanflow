@@ -73,15 +73,48 @@ build_install() {
     sudo install -Dm755 "$SRC/target/release/fancontroller" "$PREFIX/fancontroller"
 }
 
+# ── 5. Enable systemd user service for autostart ────────────────────────────────
+setup_autostart() {
+    local service_dir="$HOME/.config/systemd/user"
+    mkdir -p "$service_dir"
+
+    cat > "$service_dir/fancontroller-daemon.service" << 'EOF'
+[Unit]
+Description=FanController daemon — applies fan curves without the GUI
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/fancontroller --daemon
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+
+    # Linger ensures the user service starts at boot, not only after login.
+    loginctl enable-linger "$USER" 2>/dev/null || true
+
+    systemctl --user daemon-reload
+    systemctl --user enable fancontroller-daemon
+    systemctl --user start fancontroller-daemon 2>/dev/null || true
+    say "Autostart enabled — daemon starts automatically on boot."
+}
+
 main() {
     [ "$(uname -s)" = "Linux" ] || die "This installer is Linux only. Windows support is coming."
     install_deps
     ensure_cargo
     fetch_source
     build_install
+    setup_autostart
     echo
-    say "Done! Start FanController with:  \033[1mfancontroller\033[0m"
+    say "Done! Start the GUI with:  \033[1mfancontroller\033[0m"
     warn "On first launch FanController will ask for your sudo password once (permission setup)."
+    warn "The background daemon is already running — your saved curves apply even without the GUI."
 }
 
 main "$@"
