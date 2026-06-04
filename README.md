@@ -22,10 +22,12 @@ speeds — no browser required, no cloud, everything runs locally.
 - Custom fan labels (saved to `~/.config/fancontroller/config.json`)
 - One-time passwordless permission setup (sudoers) — no prompts after that
 
-> **Windows is not supported** and there are no plans to add it. Fan control on
-> Windows requires kernel-level drivers (Ring 0) to access hardware directly —
-> this is a fundamentally different and significantly more complex approach than
-> the Linux sysfs/hwmon interface. FanController is a Linux-only tool.
+> **Windows is not supported.** Fan control on Windows requires kernel-level
+> drivers (Ring 0) to access hardware directly — a fundamentally different and
+> significantly more complex approach than the Linux sysfs/hwmon interface.
+> A Windows port would require integrating a third-party tool that already has
+> Ring 0 access, which comes at a cost. If there is enough interest, feel free
+> to open an issue — if demand is high enough we will look into it.
 
 ## Quick Install (Linux)
 
