@@ -1,4 +1,4 @@
-# FanController
+# Fanflow
 
 A lightweight fan manager for **Linux** (Wayland & X11) with a native HTML GUI.
 Controls motherboard fans, pumps, and NVIDIA GPU fans via custom curves or fixed
@@ -33,36 +33,36 @@ speeds — no browser required, no cloud, everything runs locally.
 ### Arch Linux (AUR)
 
 ```bash
-yay -S fancontroller
+yay -S fanflow
 ```
 
 Or manually:
 ```bash
-git clone https://github.com/Smokey-thc/FanController.git
-cd FanController/packaging
+git clone https://github.com/Smokey-thc/Fanflow.git
+cd Fanflow/packaging
 makepkg -si
 ```
 
 After install, enable autostart:
 ```bash
-systemctl --user enable --now fancontroller-daemon
-fancontroller   # first launch sets up permissions (asks for sudo once)
+systemctl --user enable --now fanflow-daemon
+fanflow   # first launch sets up permissions (asks for sudo once)
 ```
 
 ### Other distros (build from source)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Smokey-thc/FanController/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Smokey-thc/Fanflow/main/install.sh | bash
 ```
 
 The script installs required packages, builds from source, copies the binary to
-`/usr/local/bin/fancontroller`, and enables the autostart daemon.
+`/usr/local/bin/fanflow`, and enables the autostart daemon.
 
 ```bash
-fancontroller          # open the GUI
+fanflow          # open the GUI
 ```
 
-> On **first launch** FanController asks for your sudo password once to set up permissions.
+> On **first launch** Fanflow asks for your sudo password once to set up permissions.
 > After that, fan control runs without any password prompts.
 
 ## Autostart (systemd)
@@ -71,14 +71,14 @@ The installer sets this up automatically. To manage it manually:
 
 ```bash
 # Status
-systemctl --user status fancontroller-daemon
+systemctl --user status fanflow-daemon
 
 # Stop / Start
-systemctl --user stop fancontroller-daemon
-systemctl --user start fancontroller-daemon
+systemctl --user stop fanflow-daemon
+systemctl --user start fanflow-daemon
 
 # Disable autostart
-systemctl --user disable fancontroller-daemon
+systemctl --user disable fanflow-daemon
 ```
 
 The daemon applies your saved **Custom** profile curves in the background — no GUI needed.
@@ -89,25 +89,25 @@ Opening the GUI stops the daemon, takes over fan control, and restarts the daemo
 When the daemon receives **SIGTERM** (systemd stop, system shutdown) or **SIGINT** (Ctrl-C),
 it resets every fan back to BIOS/driver control before exiting. This means:
 
-- `systemctl stop fancontroller-daemon` → fans go to Auto
+- `systemctl stop fanflow-daemon` → fans go to Auto
 - System shutdown → fans go to Auto (systemd sends SIGTERM before powering off)
-- `systemctl --user restart fancontroller-daemon` → brief Auto, then curves reapplied
+- `systemctl --user restart fanflow-daemon` → brief Auto, then curves reapplied
 
 > **Note:** SIGKILL (`kill -9`) cannot be intercepted by any process.
 > In that case fans stay at their last set speed until reboot or manual reset.
 
 ## Files Modified
 
-FanController writes only to these locations:
+Fanflow writes only to these locations:
 
 | Path | What |
 |------|------|
-| `~/.config/fancontroller/config.json` | Custom fan labels |
-| `~/.config/fancontroller/custom_profile.json` | Saved curve profile |
-| `~/.config/systemd/user/fancontroller-daemon.service` | Autostart service (installer only) |
-| `/etc/udev/rules.d/60-fancontroller.rules` | hwmon group permissions (one-time setup, requires sudo) |
-| `/etc/sudoers.d/fancontroller` | NOPASSWD rules for NVIDIA NVML (one-time setup, requires sudo) |
-| `/tmp/fancontroller-daemon.pid` | Daemon PID (runtime only, deleted on exit) |
+| `~/.config/fanflow/config.json` | Custom fan labels |
+| `~/.config/fanflow/custom_profile.json` | Saved curve profile |
+| `~/.config/systemd/user/fanflow-daemon.service` | Autostart service (installer only) |
+| `/etc/udev/rules.d/60-fanflow.rules` | hwmon group permissions (one-time setup, requires sudo) |
+| `/etc/sudoers.d/fanflow` | NOPASSWD rules for NVIDIA NVML (one-time setup, requires sudo) |
+| `/tmp/fanflow-daemon.pid` | Daemon PID (runtime only, deleted on exit) |
 | `/sys/class/hwmon/hwmon*/pwm*` | Fan speed and enable registers (runtime, reset on exit) |
 
 No registry, no global config, no hidden state.
@@ -123,10 +123,10 @@ No registry, no global config, no hidden state.
 | Fedora | `sudo dnf install rust cargo gtk3-devel webkit2gtk4.1-devel` |
 
 ```bash
-git clone https://github.com/Smokey-thc/FanController.git
-cd FanController
+git clone https://github.com/Smokey-thc/Fanflow.git
+cd Fanflow
 cargo build --release
-./target/release/fancontroller
+./target/release/fanflow
 ```
 
 The binary is self-contained — the entire GUI (`assets/index.html`) is compiled in via
@@ -139,31 +139,31 @@ NVML puts the GPU fan into **manual mode** which holds until explicitly released
 - **Curve / Fixed** → NVML holds the speed (driver cannot override it)
 - **Auto** → `set_default_fan_speed` hands the fan back to the driver
 
-Since NVML write access requires root, FanController re-execs itself via
-`sudo -n fancontroller --gpu-set/--gpu-reset` (the sudoers rule covers exactly those two
+Since NVML write access requires root, Fanflow re-execs itself via
+`sudo -n fanflow --gpu-set/--gpu-reset` (the sudoers rule covers exactly those two
 subcommands, nothing else).
 
 ## Permissions
 
 On first launch, setup writes:
 
-**`/etc/udev/rules.d/60-fancontroller.rules`**
+**`/etc/udev/rules.d/60-fanflow.rules`**
 ```
 SUBSYSTEM=="hwmon", KERNEL=="hwmon[0-9]*", ACTION=="add", GROUP="hwmon", MODE="0660"
 ```
 Creates an `hwmon` group and adds your user to it, so hwmon sysfs files are writable
 without sudo. No tee-through-sudo needed for motherboard fans.
 
-**`/etc/sudoers.d/fancontroller`**
+**`/etc/sudoers.d/fanflow`**
 ```
-<user> ALL=(ALL) NOPASSWD: /usr/local/bin/fancontroller --gpu-set *
-<user> ALL=(ALL) NOPASSWD: /usr/local/bin/fancontroller --gpu-reset *
+<user> ALL=(ALL) NOPASSWD: /usr/local/bin/fanflow --gpu-set *
+<user> ALL=(ALL) NOPASSWD: /usr/local/bin/fanflow --gpu-reset *
 ```
 Only needed for NVIDIA GPU fan control via NVML.
 
 To remove everything:
 ```bash
-sudo rm /etc/sudoers.d/fancontroller /etc/udev/rules.d/60-fancontroller.rules
+sudo rm /etc/sudoers.d/fanflow /etc/udev/rules.d/60-fanflow.rules
 sudo udevadm control --reload-rules
 ```
 
@@ -173,7 +173,7 @@ sudo udevadm control --reload-rules
 
 The worst-case outcome of a bug or exploit is **fans running at the wrong speed** — too low
 (overheating) or too high (noise). The SIGTERM handler ensures fans return to BIOS control
-on any clean exit. No user data, no network, no persistence outside `~/.config/fancontroller/`.
+on any clean exit. No user data, no network, no persistence outside `~/.config/fanflow/`.
 
 | Surface | Risk | Mitigation |
 |---|---|---|
@@ -185,7 +185,7 @@ on any clean exit. No user data, no network, no persistence outside `~/.config/f
 ### Minimal Privilege Design
 
 - **Motherboard fans** — written via `hwmon` group (udev rule), no sudo needed at runtime
-- **NVIDIA GPU** — re-exec via `sudo -n fancontroller --gpu-set/--gpu-reset` only; no persistent root process
+- **NVIDIA GPU** — re-exec via `sudo -n fanflow --gpu-set/--gpu-reset` only; no persistent root process
 - **Daemon** — runs fully as your user; systemd sandbox restricts what it can touch
 
 ### systemd Sandbox (daemon)
@@ -205,7 +205,7 @@ All motherboard fan control runs without any elevated privileges.
 ### Removing All Permissions
 
 ```bash
-sudo rm /etc/sudoers.d/fancontroller /etc/udev/rules.d/60-fancontroller.rules
+sudo rm /etc/sudoers.d/fanflow /etc/udev/rules.d/60-fanflow.rules
 sudo udevadm control --reload-rules
 # optionally remove the hwmon group if no other app uses it:
 sudo groupdel hwmon
@@ -220,15 +220,15 @@ src/
 ├── ipc.rs             # IPC message types (HTML ↔ Rust)
 └── hardware/
     ├── types.rs       # FanInfo, CurvePoint, FanType, FanMode
-    ├── controller.rs  # FanController + FanBackend trait, curve interpolation
+    ├── controller.rs  # Fanflow + FanBackend trait, curve interpolation
     ├── linux.rs       # HwmonBackend, NvidiaBackend (NVML), AmdGpuBackend
     └── windows.rs     # Placeholder for a future Windows port
 assets/
 └── index.html         # Full GUI (HTML/CSS/JS, compiled into the binary)
 packaging/
-├── fancontroller-daemon.service  # systemd user service
-├── fancontroller.desktop         # .desktop entry
-└── fancontroller.svg             # App icon
+├── fanflow-daemon.service  # systemd user service
+├── fanflow.desktop         # .desktop entry
+└── fanflow.svg             # App icon
 ```
 
 ## Roadmap
