@@ -29,7 +29,7 @@ package() {
     install -Dm644 "packaging/fanflow.desktop" \
         "$pkgdir/usr/share/applications/fanflow.desktop"
 
-    install -Dm644 "packaging/fancontroller.svg" \
+    install -Dm644 "packaging/fanflow.svg" \
         "$pkgdir/usr/share/icons/hicolor/scalable/apps/fanflow.svg"
 
     install -Dm644 LICENSE \
