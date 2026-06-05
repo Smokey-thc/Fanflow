@@ -28,14 +28,35 @@ speeds — no browser required, no cloud, everything runs locally.
 > **Windows is not supported** — the GUI uses webkit2gtk which is Linux-only.
 > Open an issue if you need Windows support.
 
-## Quick Install (Linux)
+## Install
+
+### Arch Linux (AUR)
+
+```bash
+yay -S fancontroller
+```
+
+Or manually:
+```bash
+git clone https://github.com/Smokey-thc/FanController.git
+cd FanController/packaging
+makepkg -si
+```
+
+After install, enable autostart:
+```bash
+systemctl --user enable --now fancontroller-daemon
+fancontroller   # first launch sets up permissions (asks for sudo once)
+```
+
+### Other distros (build from source)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Smokey-thc/FanController/main/install.sh | bash
 ```
 
-The script installs required packages, builds FanController from source, copies the binary to
-`/usr/local/bin/fancontroller`, and enables the autostart daemon. After that:
+The script installs required packages, builds from source, copies the binary to
+`/usr/local/bin/fancontroller`, and enables the autostart daemon.
 
 ```bash
 fancontroller          # open the GUI
@@ -144,6 +165,50 @@ To remove everything:
 ```bash
 sudo rm /etc/sudoers.d/fancontroller /etc/udev/rules.d/60-fancontroller.rules
 sudo udevadm control --reload-rules
+```
+
+## Security
+
+### Threat Model
+
+The worst-case outcome of a bug or exploit is **fans running at the wrong speed** — too low
+(overheating) or too high (noise). The SIGTERM handler ensures fans return to BIOS control
+on any clean exit. No user data, no network, no persistence outside `~/.config/fancontroller/`.
+
+| Surface | Risk | Mitigation |
+|---|---|---|
+| hwmon sysfs writes | Fan too low → overheat | 20 % floor enforced in code; SIGTERM resets to BIOS |
+| NVML sudoers rule | Privilege escalation | Limited to exactly `--gpu-set` / `--gpu-reset`; index range validated (max 7) |
+| WebKit renderer | JS code execution | Local-only, `PrivateNetwork=yes` in daemon, IPC strictly typed via Rust enums |
+| IPC messages | Malformed input | `serde` rejects unknown variants at parse time — no free-form shell execution |
+
+### Minimal Privilege Design
+
+- **Motherboard fans** — written via `hwmon` group (udev rule), no sudo needed at runtime
+- **NVIDIA GPU** — re-exec via `sudo -n fancontroller --gpu-set/--gpu-reset` only; no persistent root process
+- **Daemon** — runs fully as your user; systemd sandbox restricts what it can touch
+
+### systemd Sandbox (daemon)
+
+```ini
+ProtectSystem=strict       # /usr, /boot, /etc are read-only
+PrivateNetwork=yes         # zero network access
+ProtectKernelModules=yes   # cannot load kernel modules
+ProtectKernelTunables=yes  # cannot modify kernel parameters
+MemoryDenyWriteExecute=yes # no JIT / shellcode
+LockPersonality=yes        # cannot change execution domain
+```
+
+`NoNewPrivileges` is intentionally omitted so the NVIDIA re-exec via `sudo -n` still works.
+All motherboard fan control runs without any elevated privileges.
+
+### Removing All Permissions
+
+```bash
+sudo rm /etc/sudoers.d/fancontroller /etc/udev/rules.d/60-fancontroller.rules
+sudo udevadm control --reload-rules
+# optionally remove the hwmon group if no other app uses it:
+sudo groupdel hwmon
 ```
 
 ## Architecture

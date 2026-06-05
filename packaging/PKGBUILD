@@ -1,0 +1,47 @@
+# Maintainer: Smokey-thc <mauricelutz765@gmail.com>
+pkgname=fancontroller
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Fan controller for Linux with a native HTML GUI (hwmon + NVIDIA NVML)"
+arch=('x86_64')
+url="https://github.com/Smokey-thc/Fancontroller"
+license=('MIT')
+depends=('gtk3' 'webkit2gtk-4.1')
+optdepends=('nvidia-utils: NVIDIA GPU fan control via NVML')
+makedepends=('rust' 'cargo')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "Fancontroller-$pkgver"
+    cargo build --release
+}
+
+package() {
+    cd "Fancontroller-$pkgver"
+
+    install -Dm755 "target/release/fancontroller" \
+        "$pkgdir/usr/bin/fancontroller"
+
+    install -Dm644 "packaging/fancontroller-daemon.service" \
+        "$pkgdir/usr/lib/systemd/user/fancontroller-daemon.service"
+
+    install -Dm644 "packaging/fancontroller.desktop" \
+        "$pkgdir/usr/share/applications/fancontroller.desktop"
+
+    install -Dm644 "packaging/fancontroller.svg" \
+        "$pkgdir/usr/share/icons/hicolor/scalable/apps/fancontroller.svg"
+
+    install -Dm644 LICENSE \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
+
+post_install() {
+    echo ""
+    echo "==> FanController installed."
+    echo "==> Enable autostart (optional):"
+    echo "      systemctl --user enable --now fancontroller-daemon"
+    echo "==> On first launch, run once to set up permissions:"
+    echo "      fancontroller"
+    echo ""
+}

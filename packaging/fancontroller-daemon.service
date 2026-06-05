@@ -10,5 +10,18 @@ RestartSec=5
 KillSignal=SIGTERM
 TimeoutStopSec=5
 
+# Sandboxing — limits what the daemon can touch even if something goes wrong
+ProtectSystem=strict
+PrivateNetwork=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+# Note: NoNewPrivileges intentionally omitted — the daemon re-execs itself
+# via "sudo -n fancontroller --gpu-set/--gpu-reset" for NVIDIA NVML control.
+# All other operations run fully unprivileged via the hwmon group (udev rule).
+
 [Install]
 WantedBy=default.target
