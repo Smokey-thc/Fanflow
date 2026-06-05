@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Fanflow
+Comment=Fan controller for Linux (hwmon + NVIDIA NVML)
+Exec=fanflow
+Icon=fanflow
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+Keywords=fan;cooling;pwm;gpu;nvidia;temperature;

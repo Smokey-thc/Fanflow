@@ -1,14 +1,14 @@
 [package]
-name = "fancontroller"
+name = "fanflow"
 version = "0.1.0"
 edition = "2021"
 description = "Fan controller for Linux with a native HTML GUI (hwmon + NVIDIA NVML)"
 authors = ["Smokey-thc"]
 license = "MIT"
-repository = "https://github.com/Smokey-thc/FanController"
+repository = "https://github.com/Smokey-thc/Fanflow"
 
 [[bin]]
-name = "fancontroller"
+name = "fanflow"
 path = "src/main.rs"
 
 [dependencies]
